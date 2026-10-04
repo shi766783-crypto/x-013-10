@@ -22,6 +22,20 @@ export const achievementDefinitions = [
   { id: 'family-record', icon: 'book', title: '家庭档案', desc: '填写宠物芯片或备注信息', condition: (s) => s.pets.some((item) => item.microchip || item.notes) },
 ]
 
+// “近 N 天”按自然日计算，包含今天，因此窗口长度为 N 天（今天往前 N-1 天起）
+export const dateRanges = [
+  { key: '7d', label: '近 7 天', days: 7 },
+  { key: '30d', label: '近 30 天', days: 30 },
+  { key: 'all', label: '全部', days: 0 },
+]
+
+export function filterRecordsByRange(records, rangeKey) {
+  if (rangeKey === 'all') return records
+  const config = dateRanges.find((item) => item.key === rangeKey)
+  if (!config) return records
+  return records.filter((item) => daysFromToday(item.date) >= -(config.days - 1))
+}
+
 export function uid(prefix = 'item') {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
@@ -78,7 +92,10 @@ export function createDemoState() {
       { id: 'pet-nori', name: 'Nori', species: '狗', breed: '柴犬', gender: '公', birthDate: '2020-10-03', weight: 9.2, color: '赤色', neutered: true, microchip: '', photo: '', notes: '' },
     ],
     healthRecords: [
-      { id: 'health-1', petId: 'pet-momo', type: 'weight', date: '2026-09-04', value: 4.6 },
+      { id: 'health-1', petId: 'pet-momo', type: 'weight', date: '2026-08-01', value: 4.2 },
+      { id: 'health-6', petId: 'pet-momo', type: 'weight', date: '2026-08-12', value: 4.35 },
+      { id: 'health-7', petId: 'pet-momo', type: 'weight', date: '2026-08-24', value: 4.5 },
+      { id: 'health-1b', petId: 'pet-momo', type: 'weight', date: '2026-09-04', value: 4.6 },
       { id: 'health-2', petId: 'pet-momo', type: 'weight', date: '2026-09-10', value: 4.8 },
       { id: 'health-3', petId: 'pet-momo', type: 'temperature', date: '2026-09-12', value: 38.2 },
       { id: 'health-4', petId: 'pet-nori', type: 'weight', date: '2026-09-06', value: 9.1 },

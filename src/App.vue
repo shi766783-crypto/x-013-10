@@ -4,7 +4,7 @@ import { Activity, Award, Bell, BookOpen, CalendarDays, ChartNoAxesCombined, Che
 import PetModal from './components/PetModal.vue'
 import RecordModal from './components/RecordModal.vue'
 import TrendChart from './components/TrendChart.vue'
-import { calculateAge, daysFromToday, formatDate, normalRanges, todayISO } from './data'
+import { calculateAge, daysFromToday, filterRecordsByRange, formatDate, normalRanges, todayISO } from './data'
 import { usePetStore } from './composables/usePetStore'
 
 const { state, petById, petName, totalActivity, pendingVaccines, feedingTasks, medicationsToday, achievements, healthCompleteness, weightCompliance, add, addPet } = usePetStore()
@@ -13,6 +13,7 @@ const showPetModal = ref(false)
 const recordType = ref('')
 const selectedPetId = ref('pet-momo')
 const selectedMetric = ref('weight')
+const selectedRange = ref('7d')
 const mobileMenu = ref(false)
 const navItems = [
   { id: 'overview', label: '总览', icon: LayoutDashboard },
@@ -22,11 +23,13 @@ const navItems = [
   { id: 'achievements', label: '成就徽章', icon: Award },
 ]
 const currentPet = computed(() => petById(selectedPetId.value) || state.pets[0])
-const recentHealthRecords = computed(() => state.healthRecords.filter((item) => item.petId === selectedPetId.value && item.type === selectedMetric.value).sort((a, b) => a.date.localeCompare(b.date)).slice(-7))
+const metricHealthRecords = computed(() => state.healthRecords.filter((item) => item.petId === selectedPetId.value && item.type === selectedMetric.value).sort((a, b) => a.date.localeCompare(b.date)))
+const recentHealthRecords = computed(() => filterRecordsByRange(metricHealthRecords.value, selectedRange.value))
 const healthStatus = computed(() => {
-  const value = Number(recentHealthRecords.value.at(-1)?.value || currentPet.value?.weight || 0)
+  const latest = recentHealthRecords.value.at(-1)
+  if (!latest) return { label: '当前范围暂无记录', className: 'neutral' }
+  const value = Number(latest.value)
   const range = normalRanges[selectedMetric.value]
-  if (!value) return { label: '等待记录', className: 'neutral' }
   return value >= range.min && value <= range.max
     ? { label: '处于正常范围', className: 'good' }
     : { label: '建议重点关注', className: 'attention' }
@@ -99,7 +102,7 @@ function vaccineTone(days) { return days < 0 ? 'danger' : days <= 7 ? 'warning' 
           <article class="panel agenda-panel"><div class="panel-heading"><div><span class="eyebrow">今天 · 9月16日</span><h3>日程提醒</h3></div><button class="icon-btn subtle"><CalendarDays :size="18" /></button></div><div class="agenda-list"><div v-for="item in agenda.slice(0, 5)" :key="item.id" class="agenda-item"><div class="agenda-time">{{ item.time }}</div><div class="agenda-icon" :class="item.kind"><component :is="item.icon" :size="17" /></div><div class="agenda-copy"><strong>{{ item.title }}</strong><span>{{ item.detail }}</span></div><button class="check-circle"><Check :size="14" /></button></div><div v-if="!agenda.length" class="empty-state">今天没有待办，享受轻松的一天吧。</div></div><button class="full-btn" @click="activeNav = 'schedule'">查看全部日程 <ChevronRight :size="15" /></button></article>
         </section>
         <section class="content-grid lower-grid">
-          <article class="panel trend-panel"><div class="panel-heading"><div><span class="eyebrow">健康趋势</span><h3>{{ currentPet?.name }} 的{{ metricLabel(selectedMetric) }}变化</h3></div><div class="segmented"><button v-for="metric in ['weight', 'temperature', 'heartRate']" :key="metric" :class="{ active: selectedMetric === metric }" @click="selectedMetric = metric">{{ metricLabel(metric) }}</button></div></div><div class="trend-summary"><div><strong>{{ recentHealthRecords.at(-1)?.value || currentPet?.weight || '--' }} <small>{{ normalRanges[selectedMetric].unit }}</small></strong><span>最近记录 · {{ recentHealthRecords.at(-1)?.date ? formatDate(recentHealthRecords.at(-1).date) : '暂无' }}</span></div><span class="health-status" :class="healthStatus.className"><i></i>{{ healthStatus.label }}</span><span class="range-tag"><span></span>正常范围 {{ normalRanges[selectedMetric].min }} - {{ normalRanges[selectedMetric].max }} {{ normalRanges[selectedMetric].unit }}</span></div><TrendChart :records="recentHealthRecords" :type="selectedMetric" /><button class="full-btn" @click="openRecord('health')">记录健康指标 <Plus :size="15" /></button></article>
+          <article class="panel trend-panel"><div class="panel-heading"><div><span class="eyebrow">健康趋势</span><h3>{{ currentPet?.name }} 的{{ metricLabel(selectedMetric) }}变化</h3></div><div class="segmented"><button v-for="metric in ['weight', 'temperature', 'heartRate']" :key="metric" :class="{ active: selectedMetric === metric }" @click="selectedMetric = metric">{{ metricLabel(metric) }}</button></div></div><div class="trend-summary"><div><strong>{{ recentHealthRecords.at(-1)?.value || '--' }} <small>{{ normalRanges[selectedMetric].unit }}</small></strong><span>最新记录 · {{ recentHealthRecords.at(-1)?.date ? formatDate(recentHealthRecords.at(-1).date) : '暂无' }}</span></div><span class="health-status" :class="healthStatus.className"><i></i>{{ healthStatus.label }}</span><span class="range-tag"><span></span>正常范围 {{ normalRanges[selectedMetric].min }} - {{ normalRanges[selectedMetric].max }} {{ normalRanges[selectedMetric].unit }}</span></div><TrendChart v-model="selectedRange" :records="metricHealthRecords" :type="selectedMetric" /><button class="full-btn" @click="openRecord('health')">记录健康指标 <Plus :size="15" /></button></article>
           <article class="panel quick-panel"><div class="panel-heading"><div><span class="eyebrow">快速记录</span><h3>把日常变成习惯</h3></div><Sparkles :size="18" class="heading-spark" /></div><div class="quick-actions"><button @click="openRecord('health')"><span class="quick-icon health"><HeartPulse :size="19" /></span><span><strong>健康指标</strong><small>体重、体温、心率</small></span><ChevronRight :size="16" /></button><button @click="openRecord('vaccine')"><span class="quick-icon vaccine"><ShieldCheck :size="19" /></span><span><strong>疫苗与驱虫</strong><small>守护免疫计划</small></span><ChevronRight :size="16" /></button><button @click="openRecord('activity')"><span class="quick-icon activity"><Activity :size="19" /></span><span><strong>活动记录</strong><small>记录每一次活力</small></span><ChevronRight :size="16" /></button><button @click="openRecord('feeding')"><span class="quick-icon feeding"><Utensils :size="19" /></span><span><strong>喂食计划</strong><small>安排每日饮食</small></span><ChevronRight :size="16" /></button></div></article>
         </section>
         <section class="content-grid bottom-grid"><article class="panel vaccine-panel"><div class="panel-heading"><div><span class="eyebrow">免疫计划</span><h3>疫苗与驱虫</h3></div><button class="text-btn" @click="openRecord('vaccine')">添加 <Plus :size="15" /></button></div><div class="vaccine-list"><div v-for="item in upcomingVaccines.slice(0, 3)" :key="item.id" class="vaccine-item"><div class="vaccine-mark"><ShieldCheck :size="17" /></div><div><strong>{{ item.category || '疫苗' }} · {{ item.name }}</strong><span>{{ petName(item.petId) }} · {{ item.hospital || '未填写医院' }}</span></div><span class="date-badge" :class="vaccineTone(item.days)">{{ item.days < 0 ? '已逾期' : item.days === 0 ? '今天' : `${item.days} 天后` }}</span></div></div></article><article class="panel achievement-panel"><div class="panel-heading"><div><span class="eyebrow">成长足迹</span><h3>成就徽章 <small>{{ activeAchievements.length }}/12</small></h3></div><button class="text-btn" @click="activeNav = 'achievements'">全部 <ChevronRight :size="15" /></button></div><div class="badge-row"><div v-for="item in achievements.slice(0, 6)" :key="item.id" class="badge-item" :class="{ locked: !item.unlocked }"><div><Award v-if="item.unlocked" :size="21" /><span v-else>?</span></div><small>{{ item.title }}</small></div></div></article></section>
